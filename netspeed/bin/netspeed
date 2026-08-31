@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# netspeed — network throughput for an Omarchy bar command module.
+#
+# Prints, on its last stdout line, a Waybar-style JSON object:
+#   {"text": "↓ 1.2  ↑ 0.1", "tooltip": "wlo1   ↓ 1.20 MB/s   ↑ 0.05 MB/s"}
+#
+# Rates are derived from the cumulative byte counters of the default-route
+# interface, across two invocations, over the real elapsed time (state file).
+
+set -euo pipefail
+
+state_file="${XDG_RUNTIME_DIR:-/tmp}/omarchy-netspeed.state"
+
+# Interface backing the default route (the one carrying internet traffic).
+iface="$(ip route show default 2>/dev/null \
+  | awk '{for (i = 1; i <= NF; i++) if ($i == "dev") { print $(i + 1); exit }}')"
+
+if [[ -z "${iface}" || ! -r "/sys/class/net/${iface}/statistics/rx_bytes" ]]; then
+  rm -f "${state_file}"
+  printf '{"text":"↓ -- ↑ --","tooltip":"Offline"}\n'
+  exit 0
+fi
+
+rx="$(< "/sys/class/net/${iface}/statistics/rx_bytes")"
+tx="$(< "/sys/class/net/${iface}/statistics/tx_bytes")"
+now="$(date +%s.%N)"
+
+prev_iface="" prev_ts="" prev_rx="" prev_tx=""
+if [[ -r "${state_file}" ]]; then
+  read -r prev_iface prev_ts prev_rx prev_tx < "${state_file}" || true
+fi
+
+printf '%s %s %s %s\n' "${iface}" "${now}" "${rx}" "${tx}" > "${state_file}"
+
+awk -v iface="${iface}" \
+    -v rx="${rx}" -v tx="${tx}" -v now="${now}" \
+    -v p_iface="${prev_iface}" -v p_ts="${prev_ts}" \
+    -v p_rx="${prev_rx}" -v p_tx="${prev_tx}" '
+BEGIN {
+  mib = 1048576.0
+  dt = now - p_ts
+  if (p_iface == iface && p_ts != "" && dt > 0) {
+    d = (rx - p_rx) / dt; if (d < 0) d = 0
+    u = (tx - p_tx) / dt; if (u < 0) u = 0
+  } else {
+    d = 0; u = 0
+  }
+  d /= mib; u /= mib
+  text = sprintf("↓ %.1f  ↑ %.1f", d, u)
+  tip  = sprintf("%s   ↓ %.2f MB/s   ↑ %.2f MB/s", iface, d, u)
+  printf "{\"text\":\"%s\",\"tooltip\":\"%s\"}\n", text, tip
+}
+'

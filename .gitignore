@@ -1,0 +1,7 @@
+# config backups the installers create
+*.bak.*
+
+# scratch screenshot frames
+_*.png
+
+.DS_Store
