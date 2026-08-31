@@ -12,7 +12,8 @@ it survives `omarchy update`.
 
 | Tool | What it does |
 | --- | --- |
-| [`netspeed`](netspeed/) | Live download/upload rate in the bar, in MB/s, with direction arrows. |
+| [`netspeed`](netspeed/) | Live download/upload rate in the bar (KB/s → MB/s, adaptive), with direction arrows. |
+| [`window-opacity`](window-opacity/) | Keyboard shortcuts to dim/undim the focused window; the opacity is remembered per application. |
 
 ## Install
 
@@ -33,6 +34,7 @@ Per tool:
 
 ```bash
 ./netspeed/uninstall.sh
+./window-opacity/uninstall.sh
 ```
 
 ## Requirements

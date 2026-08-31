@@ -1,0 +1,162 @@
+#!/usr/bin/env bash
+# window-opacity — regle l'opacite de la fenetre focalisee et la memorise
+# par application (par classe Hyprland).
+#
+#   window-opacity down          # -5 % pour l'app focalisee (plus transparente)
+#   window-opacity up            # +5 % (plus opaque)
+#   window-opacity set 0.85      # valeur explicite : 0.85, 85 ou 85%
+#   window-opacity reset         # oublie l'app focalisee (retour au defaut Omarchy)
+#   window-opacity status        # app focalisee + opacite memorisee
+#   window-opacity list          # toutes les opacites memorisees
+#   window-opacity apply         # regenere + reapplique tout (utilise au demarrage)
+#
+# Stockage    : ~/.config/omarchy/window-opacity.json   { "<class>": 0.85, ... }
+# Regles Hypr : ~/.config/hypr/window-opacity.lua  (genere ; charge par hyprland.lua
+#               via  require("hypr.window-opacity")  — ajoute par l'installeur)
+
+set -euo pipefail
+
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}"
+STORE="${CONFIG_DIR}/omarchy/window-opacity.json"
+LUA="${CONFIG_DIR}/hypr/window-opacity.lua"
+
+MIN=0.30
+MAX=1.00
+STEP=0.05
+
+command -v jq >/dev/null || { echo "window-opacity : 'jq' requis (omarchy pkg add jq)" >&2; exit 1; }
+command -v hyprctl >/dev/null || { echo "window-opacity : hyprctl introuvable — pas de session Hyprland ?" >&2; exit 1; }
+
+mkdir -p "$(dirname "$STORE")" "$(dirname "$LUA")"
+[[ -f "$STORE" ]] || echo '{}' >"$STORE"
+
+notify() {
+  if command -v omarchy-notification-send >/dev/null; then
+    omarchy-notification-send -u low -t 1200 "$1" "${2:-}" || true
+  elif command -v notify-send >/dev/null; then
+    notify-send -u low -t 1200 "$1" "${2:-}" || true
+  fi
+}
+
+active_class() { hyprctl activewindow -j | jq -r '.class // empty'; }
+
+# echappe les metacaracteres RE2 pour un match exact ^(...)$
+re_escape() { printf '%s' "$1" | sed 's/[][\\^$.*+?(){}|-]/\\&/g'; }
+
+pct() { awk -v v="$1" 'BEGIN{ printf "%d%%", (v*100)+0.5 }'; }
+
+clamp() {
+  awk -v v="$1" -v lo="$MIN" -v hi="$MAX" \
+    'BEGIN{ if(v<lo)v=lo; if(v>hi)v=hi; printf "%.2f", v }'
+}
+
+normalize() { # "85" / "85%" / "0.85" -> "0.85"
+  local r="${1%\%}"
+  awk -v v="$r" 'BEGIN{ if (v > 1) v = v/100; printf "%.2f", v }'
+}
+
+store_get() { jq -r --arg c "$1" '.[$c] // empty' "$STORE"; }
+
+store_set() {
+  local tmp; tmp="$(mktemp)"
+  jq --arg c "$1" --argjson v "$2" '.[$c] = $v' "$STORE" >"$tmp" && mv "$tmp" "$STORE"
+}
+
+store_del() {
+  local tmp; tmp="$(mktemp)"
+  jq --arg c "$1" 'del(.[$c])' "$STORE" >"$tmp" && mv "$tmp" "$STORE"
+}
+
+regen_lua() {
+  local tmp; tmp="$(mktemp)"
+  {
+    echo "-- Genere par window-opacity — NE PAS EDITER A LA MAIN."
+    echo "-- Regenere a chaque 'window-opacity set|up|down|reset|apply'."
+    echo "-- Charge via  require(\"hypr.window-opacity\")  dans ~/.config/hypr/hyprland.lua."
+    echo
+    if [[ "$(jq -r 'length' "$STORE")" == "0" ]]; then
+      echo "-- (aucune opacite memorisee)"
+    else
+      jq -r 'to_entries | sort_by(.key)[] | "\(.key)\t\(.value)"' "$STORE" |
+        while IFS=$'\t' read -r cls val; do
+          printf 'o.window({ class = [[^(%s)$]] }, { tag = "-default-opacity", opacity = [[%s override]] })\n' \
+            "$(re_escape "$cls")" "$val"
+        done
+    fi
+  } >"$tmp"
+  mv "$tmp" "$LUA"
+}
+
+# applique une regle a chaud (fenetres ouvertes + futures de la session)
+apply_one() {
+  local lua
+  lua="$(printf 'hl.window_rule({ match = { class = [[^(%s)$]] }, opacity = [[%s override]] })' \
+    "$(re_escape "$1")" "$2")"
+  hyprctl eval "$lua" >/dev/null
+}
+
+need_class() {
+  local c; c="$(active_class)"
+  [[ -n "$c" ]] || { echo "window-opacity : aucune fenetre focalisee" >&2; exit 1; }
+  printf '%s' "$c"
+}
+
+cmd="${1:-status}"
+case "$cmd" in
+up | down)
+  cls="$(need_class)"
+  cur="$(store_get "$cls")"; [[ -n "$cur" ]] || cur=1.00
+  sign=$([[ "$cmd" == up ]] && echo + || echo -)
+  new="$(clamp "$(awk -v c="$cur" -v s="$STEP" "BEGIN{printf \"%.2f\", c ${sign} s}")")"
+  store_set "$cls" "$new"
+  regen_lua
+  apply_one "$cls" "$new"
+  notify "Opacite $(pct "$new")" "$cls"
+  echo "$cls -> $(pct "$new")"
+  ;;
+set)
+  cls="$(need_class)"
+  raw="${2:?usage: window-opacity set <valeur>  (0.85 | 85 | 85%)}"
+  new="$(clamp "$(normalize "$raw")")"
+  store_set "$cls" "$new"
+  regen_lua
+  apply_one "$cls" "$new"
+  notify "Opacite $(pct "$new")" "$cls"
+  echo "$cls -> $(pct "$new")"
+  ;;
+reset)
+  cls="$(need_class)"
+  store_del "$cls"
+  regen_lua
+  hyprctl reload >/dev/null   # retire proprement la regle dynamique
+  notify "Opacite par defaut" "$cls"
+  echo "$cls -> defaut Omarchy"
+  ;;
+apply)
+  regen_lua
+  jq -r 'to_entries[] | "\(.key)\t\(.value)"' "$STORE" |
+    while IFS=$'\t' read -r c v; do apply_one "$c" "$v"; done
+  echo "window-opacity : $(jq -r 'length' "$STORE") regle(s) reappliquee(s)"
+  ;;
+list)
+  if [[ "$(jq -r 'length' "$STORE")" == "0" ]]; then
+    echo "(aucune opacite memorisee)"
+  else
+    jq -r 'to_entries | sort_by(.key)[] | "\((.value*100+0.5|floor))%\t\(.key)"' "$STORE" |
+      column -t -s$'\t'
+  fi
+  ;;
+status)
+  cls="$(active_class)"
+  [[ -n "$cls" ]] || { echo "aucune fenetre focalisee"; exit 0; }
+  cur="$(store_get "$cls")"
+  if [[ -n "$cur" ]]; then echo "$cls : $(pct "$cur") (memorise)"; else echo "$cls : defaut Omarchy"; fi
+  ;;
+-h | --help | help)
+  sed -n '2,26p' "$0" | sed 's/^# \?//'
+  ;;
+*)
+  echo "window-opacity : commande inconnue '$cmd' (voir 'window-opacity --help')" >&2
+  exit 1
+  ;;
+esac
