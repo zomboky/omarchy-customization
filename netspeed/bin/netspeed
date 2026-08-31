@@ -2,10 +2,12 @@
 # netspeed — network throughput for an Omarchy bar command module.
 #
 # Prints, on its last stdout line, a Waybar-style JSON object:
-#   {"text": "↓ 1.2  ↑ 0.1", "tooltip": "wlo1   ↓ 1.20 MB/s   ↑ 0.05 MB/s"}
+#   {"text": "↓ 320K  ↑ 12K", "tooltip": "wlo1   ↓ 320K   ↑ 12K"}
 #
-# Rates are derived from the cumulative byte counters of the default-route
-# interface, across two invocations, over the real elapsed time (state file).
+# The rate unit adapts: bytes/s below 1 KiB/s show as "0", below 1 MiB/s as
+# KB/s (e.g. 320K), above as MB/s (e.g. 25.9M). Rates are derived from the
+# cumulative byte counters of the default-route interface, across two
+# invocations, over the real elapsed time (state file).
 
 set -euo pipefail
 
@@ -36,8 +38,13 @@ awk -v iface="${iface}" \
     -v rx="${rx}" -v tx="${tx}" -v now="${now}" \
     -v p_iface="${prev_iface}" -v p_ts="${prev_ts}" \
     -v p_rx="${prev_rx}" -v p_tx="${prev_tx}" '
+function fmt(b) {
+  if (b < 1024)          return "0"
+  if (b < 1048576)       return sprintf("%.0fK", b / 1024)
+  if (b < 1073741824)    return sprintf("%.1fM", b / 1048576)
+  return sprintf("%.1fG", b / 1073741824)
+}
 BEGIN {
-  mib = 1048576.0
   dt = now - p_ts
   if (p_iface == iface && p_ts != "" && dt > 0) {
     d = (rx - p_rx) / dt; if (d < 0) d = 0
@@ -45,9 +52,8 @@ BEGIN {
   } else {
     d = 0; u = 0
   }
-  d /= mib; u /= mib
-  text = sprintf("↓ %.1f  ↑ %.1f", d, u)
-  tip  = sprintf("%s   ↓ %.2f MB/s   ↑ %.2f MB/s", iface, d, u)
+  text = sprintf("↓ %s  ↑ %s", fmt(d), fmt(u))
+  tip  = sprintf("%s   ↓ %s   ↑ %s", iface, fmt(d), fmt(u))
   printf "{\"text\":\"%s\",\"tooltip\":\"%s\"}\n", text, tip
 }
 '
