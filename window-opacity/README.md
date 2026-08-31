@@ -10,6 +10,8 @@ des *window rules* (statiques, dans la config) ou par une commande ponctuelle
 qui ne survit pas au reload. `window-opacity` fait le pont : une commande ajuste
 la fenêtre focalisée **immédiatement** *et* écrit une règle persistante.
 
+<img src="screenshots/blueprint-keys.png" alt="Plan : les deux raccourcis, la plage d'opacité (0.30 → 1.00, pas 0.05) et le rendu" width="100%">
+
 ## Utilisation
 
 | Raccourci | Commande | Effet |
@@ -36,6 +38,8 @@ Bornes : **30 % → 100 %**, pas de **5 %**. Le « défaut Omarchy » est
 (navigateurs, lecteurs vidéo, jeux…).
 
 ## Comment ça marche
+
+<img src="screenshots/blueprint-architecture.png" alt="Plan mécanique : appui clavier → script → voie à chaud (hyprctl eval) et voie persistante (JSON + .lua généré + require) → opacité appliquée à toute la classe" width="100%">
 
 Deux mécanismes, tenus synchronisés par le script :
 
