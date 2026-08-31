@@ -14,6 +14,7 @@ it survives `omarchy update`.
 | --- | --- |
 | [`netspeed`](netspeed/) | Live download/upload rate in the bar (KB/s → MB/s, adaptive), with direction arrows. |
 | [`window-opacity`](window-opacity/) | Keyboard shortcuts to dim/undim the focused window; the opacity is remembered per application. |
+| [`window-arrows`](window-arrows/) | Arrow keys for window management: `SUPER` resizes, `SUPER+CTRL` moves focus, `SUPER+SHIFT` swaps. |
 
 ## Install
 
@@ -35,6 +36,7 @@ Per tool:
 ```bash
 ./netspeed/uninstall.sh
 ./window-opacity/uninstall.sh
+./window-arrows/uninstall.sh
 ```
 
 ## Requirements
