@@ -20,8 +20,12 @@ la fenêtre focalisée **immédiatement** *et* écrit une règle persistante.
 | `SUPER SHIFT + =` | `window-opacity down` | −5 % (plus transparente) |
 
 `SUPER + =` et `SUPER SHIFT + =` étaient les défauts Omarchy *« Shrink window
-left »* / *« Expand window down »* ; l'installeur les `hl.unbind` d'abord.
-`SUPER + -` / `SUPER SHIFT + -` redimensionnent toujours.
+left »* / *« Expand window down »*. Omarchy les binde **par keycode**
+(`SUPER + code:21`), donc l'installeur `hl.unbind` la forme `code:21` — pas
+`SUPER + EQUAL`, qui ne matcherait pas — et rebinde en `code:21` (indépendant
+de la disposition : en AZERTY, `SHIFT + =` donne le keysym `plus`, pas `equal`).
+`SUPER + ALT + =` et `SUPER + CTRL + =` redimensionnent encore (variantes
+*« a little »* / *« a lot »*), de même que toute la famille sur `-`.
 
 En ligne de commande (le script est dans `~/.local/bin`) :
 
@@ -87,7 +91,8 @@ L'installeur :
 1. copie `bin/window-opacity` → `~/.local/bin/window-opacity` (mode 755) ;
 2. crée `~/.config/hypr/window-opacity.lua` (vide s'il n'existe pas) ;
 3. ajoute `require("hypr.window-opacity")` à `~/.config/hypr/hyprland.lua` ;
-4. ajoute les 2 raccourcis (+ 2 `hl.unbind`) à `~/.config/hypr/bindings.lua` ;
+4. ajoute les 2 raccourcis (`SUPER + code:21` / `SUPER + SHIFT + code:21`,
+   après `hl.unbind` des défauts keycode) à `~/.config/hypr/bindings.lua` ;
 5. `hyprctl reload` puis vérifie `hyprctl configerrors`.
 
 **Idempotent** : chaque bloc ajouté est encadré par des marqueurs

@@ -74,13 +74,17 @@ else
   {
     echo ""
     echo '-- >>> window-opacity'
-    echo '-- SUPER+= / SUPER+SHIFT+= etaient : "Shrink window left" / "Expand window down".'
-    echo '-- SUPER+MINUS / SUPER+SHIFT+MINUS redimensionnent toujours.'
-    echo 'hl.unbind("SUPER + EQUAL")'
-    echo 'hl.unbind("SUPER + SHIFT + EQUAL")'
-    echo 'o.bind("SUPER + EQUAL", "Opacite +", "$HOME/.local/bin/window-opacity up")'
-    echo 'o.bind("SUPER + SHIFT + EQUAL", "Opacite -", "$HOME/.local/bin/window-opacity down")'
+    echo '-- Touche "=" (code:21). Omarchy binde le resize par KEYCODE'
+    echo '-- ("SUPER + code:21" = "Shrink window left", "SUPER + SHIFT + code:21" ='
+    echo '-- "Expand window down") : il faut unbind la forme keycode, pas "SUPER + EQUAL".'
+    echo '-- On rebinde aussi en code:21 pour rester independant du clavier (AZERTY :'
+    echo '-- SHIFT + "=" donne le keysym "plus", pas "equal").'
+    echo 'hl.unbind("SUPER + code:21")'
+    echo 'hl.unbind("SUPER + SHIFT + code:21")'
+    echo 'o.bind("SUPER + code:21", "Opacite +", "$HOME/.local/bin/window-opacity up")'
+    echo 'o.bind("SUPER + SHIFT + code:21", "Opacite -", "$HOME/.local/bin/window-opacity down")'
     echo "-- reset : lancer 'window-opacity reset' (pas de raccourci clavier)"
+    echo '-- SUPER+ALT+"=" / SUPER+CTRL+"=" redimensionnent encore (variants "a little"/"a lot").'
     echo '-- <<< window-opacity'
   } >>"${bindings_lua}"
   echo "window-opacity : ajoute SUPER+= (plus opaque) / SUPER+SHIFT+= (plus transparent) a bindings.lua"
